@@ -123,7 +123,10 @@ if not os.path.exists(output_folder):
 
 # Criar janela principal
 window = tk.Tk()
-window.title("Preenchimento de Documentos")
+window.title("AutoDoc - Preenchimento automático de documentos")
+
+# Definir um ícone personalizado
+window.iconbitmap("icone_rcode.ico")
 
 # Definir as dimensões da janela
 largura_janela = 600
@@ -225,6 +228,8 @@ converter_word_para_pdf_button.pack()
 # Botão para exibir o guia passo a passo
 exibir_guia_button = tk.Button(window, text="Exibir Guia Passo a Passo", command=exibir_guia, font=font_style)
 exibir_guia_button.pack()
+
+
 
 # Iniciar a janela
 window.mainloop()
