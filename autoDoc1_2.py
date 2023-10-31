@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 import PyPDF2
 from docx import Document
 import tkinter as tk  # Importe tkinter aqui
@@ -9,9 +10,12 @@ import os
 import re
 from docx2pdf import convert
 from PIL import Image, ImageTk
+from datetime import datetime
+
 
 # Função para preencher campos em um arquivo PDF
-def preencher_pdf(arquivo_pdf):
+def preencher_pdf(arquivo_pdf, output_folder):
+    
     pdf_reader = PyPDF2.PdfFileReader(arquivo_pdf)
 
     campos_pdf = {}
@@ -34,15 +38,15 @@ def preencher_pdf(arquivo_pdf):
             page_text = page_text.replace(campo, valor)
             pdf_page.getPage(0).mergePage(page)
 
-        # Gerar um novo arquivo PDF com um nome exclusivo
+        # Gerar um novo arquivo PDF com um nome exclusivo na pasta de saída
         base_name, ext = os.path.splitext(arquivo_pdf)
-        output_pdf = f"{base_name}Editado_{page_num + 1}.pdf"
+        output_pdf = os.path.join(output_folder, f"{base_name}Editado_{page_num + 1}.pdf")
         with open(output_pdf, 'wb') as output:
             pdf_page.write(output)
         messagebox.showinfo("PDF Salvo", f"O arquivo PDF da página {page_num + 1} foi preenchido e salvo com sucesso!")
 
 # Função para preencher campos em um arquivo do Word
-def preencher_word(arquivo_docx):
+def preencher_word(arquivo_docx, output_folder):
     doc = Document(arquivo_docx)
 
     campos_docx = {}
@@ -60,9 +64,9 @@ def preencher_word(arquivo_docx):
             para.clear()
             para.add_run(text)
 
-    # Gerar um novo arquivo do Word com um nome exclusivo
-    base_name, ext = os.path.splitext(arquivo_docx)
-    output_docx = f"{base_name}Editado.docx"
+    # Gerar um novo arquivo do Word com um nome exclusivo na pasta de saída
+    base_name, ext = os.path.splitext(os.path.basename(arquivo_docx))
+    output_docx = os.path.join(output_folder, f"{base_name}Editado.docx")
     doc.save(output_docx)
     messagebox.showinfo("Documento do Word Salvo", "O arquivo do Word foi preenchido e salvo com sucesso!")
 
@@ -71,20 +75,13 @@ def converter_word_para_pdf():
     arquivo_docx = filedialog.askopenfilename(title="Selecione um arquivo do Word", filetypes=[("Documentos do Word", "*.docx")])
     if arquivo_docx:
         try:
-            convert(arquivo_docx)
-            messagebox.showinfo("Documento do Word Convertido para PDF", "O arquivo do Word foi convertido para PDF e salvo com sucesso!")
+            base_name, ext = os.path.splitext(os.path.basename(arquivo_docx))
+            output_pdf = os.path.join(output_folder, f"{base_name}.pdf")  # Nome original + .pdf
+            convert(arquivo_docx, output_pdf)
+            messagebox.showinfo("Documento do Word Convertido para PDF", f"O arquivo do Word foi convertido para PDF e salvo com sucesso em {output_pdf}!")
         except Exception as e:
             messagebox.showerror("Erro na conversão", f"Ocorreu um erro ao converter o arquivo: {str(e)}")
 
-# Função para selecionar um arquivo
-def selecionar_arquivo():
-    arquivo = filedialog.askopenfilename(title="Selecione um arquivo")
-    if arquivo.lower().endswith('.pdf'):
-        preencher_pdf(arquivo)
-    elif arquivo.lower().endswith('.docx'):
-        preencher_word(arquivo)
-    else:
-        messagebox.showinfo("Formato não suportado", "Formato de arquivo não suportado.")
 
 # Função para exibir um guia passo a passo
 def exibir_guia():
@@ -108,6 +105,22 @@ def exibir_guia():
     --------->>>"Converter WORD para PDF"<<<------------
     """
     messagebox.showinfo("Guia Passo a Passo", guia)
+
+
+def selecionar_arquivo():
+    arquivo = filedialog.askopenfilename(title="Selecione um arquivo")
+    if arquivo.lower().endswith('.pdf'):
+        preencher_pdf(arquivo, output_folder)
+    elif arquivo.lower().endswith('.docx'):
+        preencher_word(arquivo, output_folder)
+    else:
+        messagebox.showinfo("Formato não suportado", "Formato de arquivo não suportado.")
+
+# Verificar se a pasta de saída existe, e criá-la se não existir
+output_folder = "output_folder"  # Nome da pasta de saída
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+
 # Criar janela principal
 window = tk.Tk()
 window.title("Preenchimento de Documentos")
@@ -137,6 +150,69 @@ gif_image = ImageTk.PhotoImage(jpeg_image)
 # Configurar uma imagem de fundo
 background_label = tk.Label(window, image=gif_image)
 background_label.place(relwidth=1, relheight=1)
+
+# Função para atualizar a lista de arquivos na Treeview (tabela) com datas e horas de criação
+def atualizar_lista_arquivos():
+    lista_arquivos.delete(*lista_arquivos.get_children())  # Limpar a tabela atual
+
+    # Definir as colunas
+    lista_arquivos["columns"] = ("Nome do Arquivo", "Data e Hora de Criação")
+    lista_arquivos.column("#0", width=0, stretch=tk.NO)  # Coluna vazia
+    lista_arquivos.column("Nome do Arquivo", anchor="w")
+    lista_arquivos.column("Data e Hora de Criação", anchor="w")
+
+    # Configurar os cabeçalhos das colunas
+    lista_arquivos.heading("#0", text="", anchor="w")
+    lista_arquivos.heading("Nome do Arquivo", text="Nome do Arquivo", anchor="w")
+    lista_arquivos.heading("Data e Hora de Criação", text="Data e Hora de Criação", anchor="w")
+
+    arquivos_info = []
+    for arquivo in os.listdir(output_folder):
+        caminho_arquivo = os.path.join(output_folder, arquivo)
+        data_hora_criacao = datetime.fromtimestamp(os.path.getctime(caminho_arquivo))
+        arquivos_info.append((arquivo, data_hora_criacao))
+
+    # Adicionar os dados à tabela
+    for info in sorted(arquivos_info, key=lambda x: x[1]):
+        lista_arquivos.insert("", "end", values=info)
+
+    lista_arquivos.bind("<Double-1>", abrir_arquivo)
+
+#evento de abrir arquivo
+def abrir_arquivo(event):
+    # Obtenha o item selecionado (arquivo) na lista
+    selecionado = lista_arquivos.selection()[0]  # Pode lidar com a seleção de múltiplos arquivos se necessário
+
+    # Obtenha o nome do arquivo selecionado
+    nome_arquivo = lista_arquivos.item(selecionado, "values")[0]
+
+    # Construa o caminho completo para o arquivo
+    caminho_arquivo = os.path.join(output_folder, nome_arquivo)
+
+    # Abra o arquivo com o aplicativo padrão do sistema
+    os.system(f'start "" "{caminho_arquivo}"')  # Isso funciona no Windows, mas pode variar de sistema para sistema
+
+# Criar o widget Treeview (tabela) para mostrar a lista de arquivos
+lista_arquivos = ttk.Treeview(window, columns=("Nome do Arquivo", "Data e Hora de Criação"), show="headings")
+lista_arquivos.pack()
+
+# Botão para atualizar a lista de arquivos
+atualizar_lista_button = tk.Button(window, text="Atualizar Lista de Arquivos", command=atualizar_lista_arquivos, font=font_style)
+atualizar_lista_button.pack()
+# Definir as colunas
+lista_arquivos["columns"] = ("Nome do Arquivo", "Data e Hora de Criação")
+lista_arquivos.column("#0", width=0, stretch=tk.NO)  # Coluna vazia
+lista_arquivos.column("Nome do Arquivo", anchor="w")
+lista_arquivos.column("Data e Hora de Criação", anchor="w")
+
+# Configurar os cabeçalhos das colunas
+lista_arquivos.heading("#0", text="", anchor="w")
+lista_arquivos.heading("Nome do Arquivo", text="Nome do Arquivo", anchor="w")
+lista_arquivos.heading("Data e Hora de Criação", text="Data e Hora de Criação", anchor="w")
+
+# Função para atualizar a lista de arquivos na Treeview (tabela) com datas e horas de criação
+def atualizar_lista_arquivos():
+    lista_arquivos.delete(*lista_arquivos.get_children())  # Limpar a tabela atual
 
 # Botão para selecionar arquivo
 selecionar_arquivo_button = tk.Button(window, text="Selecionar Arquivo", command=selecionar_arquivo, font=font_style)
